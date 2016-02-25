@@ -5,8 +5,11 @@
     /// </summary>
     public class SepaCreditTransferTransaction : SepaTransferTransaction
     {
-        /// <summary>
-        ///     Creditor IBAN data
+        
+		public string CategoryPurpose {get;set;}
+		
+		/// <summary>
+        /// Creditor IBAN data
         /// </summary>
         /// <exception cref="SepaRuleException">If creditor to set is not valid.</exception>
         public SepaIbanData Creditor

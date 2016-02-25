@@ -1,14 +1,10 @@
 /.hgignore
-
 /*.suo
-
 /*.user
-
 /.hg/*
-
 */obj/*
-
 */bin/*
-
 .sonar
 /TestResults
+/packages/log4net*/*
+/packages/NUnit*/*
