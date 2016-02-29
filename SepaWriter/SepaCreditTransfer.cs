@@ -5,13 +5,46 @@ using Perrich.SepaWriter.Utils;
 
 namespace Perrich.SepaWriter
 {
+	public enum enumAuthorisation1Code {
+		AUTH, FDET, FSUM, ILEV
+	}
+
+	public class AuthorisationChoice {
+
+		public AuthorisationChoice(string partyName) {
+			this.PartyName = partyName;
+		}
+
+		public AuthorisationChoice(string partyName, enumAuthorisation1Code authorisation1Code) {
+			this.PartyName = partyName;
+			this.Authorisation1Code = authorisation1Code;
+		}
+
+		public enumAuthorisation1Code? Authorisation1Code { get; set; }
+		
+		private string _PartyName;
+
+		public string PartyName {
+			get { return _PartyName; }
+			set {
+				if (!string.IsNullOrEmpty(value) && value.Length > 128) {
+					throw new SepaRuleException("Party Name must be max 128 characters in length.");
+				}
+				_PartyName = value;
+			}
+		}
+	}
+
     /// <summary>
     ///     Manage SEPA (Single Euro Payments Area) CreditTransfer for SEPA or international order.
     ///     Only one PaymentInformation is managed but it can manage multiple transactions.
     /// </summary>
     public class SepaCreditTransfer : SepaTransfer<SepaCreditTransferTransaction>
     {
-        /// <summary>
+        //Authstn
+		public AuthorisationChoice AuthorisationChoice { get; set; }
+		
+		/// <summary>
         ///     Debtor account ISO currency code (default is EUR)
         /// </summary>
         public string DebtorAccountCurrency { get; set; }
@@ -83,10 +116,23 @@ namespace Perrich.SepaWriter
             var grpHdr = XmlUtils.GetFirstElement(xml, "CstmrCdtTrfInitn").NewElement("GrpHdr");
             grpHdr.NewElement("MsgId", MessageIdentification);
             grpHdr.NewElement("CreDtTm", StringUtils.FormatDateTime(CreationDate));
+
+			if (this.AuthorisationChoice != null) {
+				var elmnt = grpHdr.NewElement("Authstn");
+				if (this.AuthorisationChoice.Authorisation1Code != null) {
+					elmnt.NewElement("Cd", this.AuthorisationChoice.Authorisation1Code.ToString());
+				}
+				if (! string.IsNullOrEmpty(this.AuthorisationChoice.PartyName)) {
+					elmnt.NewElement("Prtry", this.AuthorisationChoice.PartyName);
+				}
+			}
+
             grpHdr.NewElement("NbOfTxs", numberOfTransactions);
             grpHdr.NewElement("CtrlSum", StringUtils.FormatAmount(headerControlSum));
             grpHdr.NewElement("InitgPty").NewElement("Nm", InitiatingPartyName);
+
 			
+
 			if (InitiatingPartyId != null) {
 				XmlUtils.GetFirstElement(grpHdr, "InitgPty").
 					NewElement("Id").NewElement("OrgId").
@@ -111,6 +157,7 @@ namespace Perrich.SepaWriter
 					 NewElement("Cd", CategoryPurposeCode);
 			}
 			
+
 			pmtInf.NewElement("ReqdExctnDt", StringUtils.FormatDate(RequestedExecutionDate));
             pmtInf.NewElement("Dbtr").NewElement("Nm", Debtor.Name);
 			if (InitiatingPartyId != null) {
@@ -145,12 +192,22 @@ namespace Perrich.SepaWriter
         {
             var cdtTrfTxInf = pmtInf.NewElement("CdtTrfTxInf");
             var pmtId = cdtTrfTxInf.NewElement("PmtId");
-            if (transfer.Id != null)
-                pmtId.NewElement("InstrId", transfer.Id);
+			var pmtTpInf = cdtTrfTxInf.NewElement("PmtTpInf");
+
+			pmtTpInf.NewElement("SvcLvl").NewElement("Cd", "SEPA");
+
+			if (!string.IsNullOrEmpty(transfer.CategoryPurpose)) {
+				pmtTpInf.NewElement("CtgyPurp").NewElement("Cd", transfer.CategoryPurpose);
+			}
+
+			if (transfer.Id != null) {
+				pmtId.NewElement("InstrId", transfer.Id);
+			}
             pmtId.NewElement("EndToEndId", transfer.EndToEndId);
             cdtTrfTxInf.NewElement("Amt")
                        .NewElement("InstdAmt", StringUtils.FormatAmount(transfer.Amount))
                        .SetAttribute("Ccy", transfer.Currency);
+
             XmlUtils.CreateBic(cdtTrfTxInf.NewElement("CdtrAgt"), transfer.Creditor);
             cdtTrfTxInf.NewElement("Cdtr").NewElement("Nm", transfer.Creditor.Name);
 
@@ -164,9 +221,12 @@ namespace Perrich.SepaWriter
 				cdtTrfTxInf.NewElement("RmtInf").NewElement("Ustrd", transfer.RemittanceInformation);
 			}
         }
+
         protected override bool CheckSchema(SepaSchema aSchema)
         {
             return aSchema == SepaSchema.Pain00100103 || aSchema == SepaSchema.Pain00100104;
         }
-    }
+
+		
+	}
 }
